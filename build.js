@@ -51,7 +51,7 @@ for (let i = range[2].from; i <= range[2].to; i++) {
   Deno.removeSync(`ngram/${fileName}`);
   Deno.mkdirSync("dist/3gram", { recursive: true });
   for (const [abc, words] of Object.entries(result)) {
-    const outFilePath = `dist/3gram/${abc}.lst`;
+    const outFilePath = `dist/3gram/${abc}.csv`;
     if (existsSync(outFilePath)) {
       Deno.writeTextFileSync(outFilePath, "\n" + words.join("\n"), { append: true });
     } else {
