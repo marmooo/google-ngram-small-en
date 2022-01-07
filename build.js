@@ -11,18 +11,13 @@ function existsSync(filepath) {
 }
 
 // https://storage.googleapis.com/books/ngrams/books/datasetsv3.html
-// const range = [
-//   { from:6, to:23 },
-//   { from:85, to:586 },
-//   { from:671, to:6862 },
-// ];
 const range = [
   { from:0, to:23 },
   { from:0, to:588 },
-  // { from:0, to:6880 },
-  { from:0, to:99 },
+  { from:0, to:6880 },
 ];
 
+// TODO: /tmp が爆発するので100件ずつ手動ダウンロードしたほうがいい
 for (let i = range[2].from; i <= range[2].to; i++) {
   const result = {};
   const baseUrl = "http://storage.googleapis.com/books/ngrams/books/20200217/eng"
