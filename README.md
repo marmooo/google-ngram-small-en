@@ -1,4 +1,4 @@
-# google-ngrams-small
+# google-ngram-small
 
 Smaller Google Nram with time and count thresholds.
 
