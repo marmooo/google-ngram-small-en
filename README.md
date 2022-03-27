@@ -1,8 +1,8 @@
-# google-ngram-small
+# google-ngram-small-en
 
 Smaller
 [Google Nram](https://storage.googleapis.com/books/ngrams/books/datasetsv3.html)
-with time and count thresholds.
+in English with time and count thresholds.
 
 ## Build
 
