@@ -1,61 +1,69 @@
-import { readStringDelim } from "https://deno.land/std/io/mod.ts";
-import { $ } from 'https://deno.land/x/bazx/mod.ts';
+import { TextLineStream } from "jsr:@std/streams";
 
-function existsSync(filepath) {
+const ranges = [
+  { id: 1, from: 6, to: 23, total: 24 },
+  { id: 2, from: 0, to: 588, total: 589 },
+  { id: 3, from: 0, to: 6880, total: 6881 },
+];
+
+const baseUrl = "http://storage.googleapis.com/books/ngrams/books/20200217/eng";
+
+async function appendLines(outFilePath, lines) {
   try {
-    Deno.lstatSync(filepath);
-    return true;
+    await Deno.lstat(outFilePath);
+    await Deno.writeTextFile(outFilePath, "\n" + lines.join("\n"), {
+      append: true,
+    });
   } catch {
-    return false;
+    await Deno.writeTextFile(outFilePath, lines.join("\n"));
   }
 }
 
-// https://storage.googleapis.com/books/ngrams/books/datasetsv3.html
-const range = [
-  { from:0, to:23 },
-  { from:0, to:588 },
-  { from:0, to:6880 },
-];
+async function processFile(fileName, outDir, id) {
+  const buffers = {};
 
-// TODO: /tmp が爆発するので100件ずつ手動ダウンロードしたほうがいい
-for (let i = range[2].from; i <= range[2].to; i++) {
-  const result = {};
-  const baseUrl = "http://storage.googleapis.com/books/ngrams/books/20200217/eng"
-  // const fileName = `1-${i.toString().padStart(5, '0')}-of-00024`;
-  // const fileName = `2-${i.toString().padStart(5, '0')}-of-00589`;
-  const fileName = `3-${i.toString().padStart(5, '0')}-of-06881`;
-  console.log(fileName);
-  const url = `${baseUrl}/${fileName}.gz`;
-  await $`wget ${url} -P ngram`;
-  await $`gzip -d ngram/${fileName}.gz`;
-  const fileReader = await Deno.open(`ngram/${fileName}`);
-  // TODO: readLines では失敗
-  // for await (const line of readLines(fileReader)) {
-  for await (const line of readStringDelim(fileReader, "\n")) {
+  console.log(`[${id}gram] downloading ${fileName} ...`);
+  const res = await fetch(`${baseUrl}/${fileName}.gz`);
+  if (!res.ok) throw new Error(`Failed to fetch ${fileName}`);
+  const stream = res.body
+    .pipeThrough(new DecompressionStream("gzip"))
+    .pipeThrough(new TextDecoderStream())
+    .pipeThrough(new TextLineStream());
+
+  for await (const line of stream) {
     if (!line) continue;
     const arr = line.split("\t");
     const word = arr[0];
-    if (/^[a-zA-Z_].*/.test(word)) {
-      const last = arr.slice(-1)[0];
-      const [_date, count1, _count2] = last.split(",");
-      if (count1.length >= 4) {
-        const abc = word[0];
-        if (abc in result) {
-          result[abc].push([word, count1]);
-        } else {
-          result[abc] = [[word, count1]];
-        }
-      }
-    }
+    if (!/^[a-zA-Z_]/.test(word)) continue;
+
+    const last = arr[arr.length - 1];
+    const [_date, count1, _count2] = last.split(",");
+    if (!count1 || count1.length < 4) continue;
+
+    const firstLetter = word[0];
+    if (!(firstLetter in buffers)) buffers[firstLetter] = [];
+    buffers[firstLetter].push(`${word},${count1}`);
   }
-  Deno.removeSync(`ngram/${fileName}`);
-  Deno.mkdirSync("dist/3gram", { recursive: true });
-  for (const [abc, words] of Object.entries(result)) {
-    const outFilePath = `dist/3gram/${abc}.csv`;
-    if (existsSync(outFilePath)) {
-      Deno.writeTextFileSync(outFilePath, "\n" + words.join("\n"), { append: true });
-    } else {
-      Deno.writeTextFileSync(outFilePath, words.join("\n"));
-    }
+
+  // flush
+  await Deno.mkdir(outDir, { recursive: true });
+  for (const [letter, lines] of Object.entries(buffers)) {
+    const outFilePath = `${outDir}/${letter}.csv`;
+    await appendLines(outFilePath, lines);
+    console.log(
+      `[${id}gram] ${letter}.csv written (from ${fileName} to ${fileName})`,
+    );
+  }
+}
+
+for (const { id, from, to, total } of ranges) {
+  const outDir = `dist/${id}gram`;
+  for (let i = from; i <= to; i++) {
+    const fileName = `${id}-${i.toString().padStart(5, "0")}-of-${
+      total
+        .toString()
+        .padStart(5, "0")
+    }`;
+    await processFile(fileName, outDir, id);
   }
 }
